@@ -65,27 +65,26 @@ def run_command(command, args):
     for arg in args:
         assert type(arg) in (bytes, unicode), 'arg is %s (%s)' % (arg, type(arg))
 
-    stdout = tempfile.TemporaryFile()
-    stderr = tempfile.TemporaryFile()
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
 
-    cmd = [command] + args
+        cmd = [command] + args
 
-    try:
-        p = subprocess.Popen(cmd, stdout=stdout, stderr=stderr)
-    except OSError as o:
-        if o.errno == errno.ENOENT:
-            # no such file, command not found
-            raise getmailConfigurationError('Program "%s" not found' % command)
-        #else:
-        raise
+        try:
+            p = subprocess.Popen(cmd, stdout=stdout, stderr=stderr)
+        except OSError as o:
+            if o.errno == errno.ENOENT:
+                # no such file, command not found
+                raise getmailConfigurationError('Program "%s" not found' % command)
+            #else:
+            raise
 
-    rc = p.wait()
-    stdout.seek(0)
-    stderr.seek(0)
-    if sys.version_info.major == 2:
-        return (rc, stdout.read().strip(), stderr.read().strip())
-    else:
-        return (rc, stdout.read().decode().strip(), stderr.read().decode().strip())
+        rc = p.wait()
+        stdout.seek(0)
+        stderr.seek(0)
+        if sys.version_info.major == 2:
+            return (rc, stdout.read().strip(), stderr.read().strip())
+        else:
+            return (rc, stdout.read().decode().strip(), stderr.read().decode().strip())
 
 #
 # Base classes
@@ -300,18 +299,18 @@ class ConfMboxPath(ConfString):
             )
         fd = os.open(val, os.O_RDWR)
         status_old = os.fstat(fd)
-        f = os.fdopen(fd, 'r+')
+        f = os.fdopen(fd, 'br+')
         # Check if it _is_ an mbox file.  mbox files must start with "From "
         # in their first line, or are 0-length files.
         f.seek(0, 0)
         first_line = f.readline()
-        if first_line and first_line[:5] != 'From ':
+        if first_line and first_line[:5] != b'From ':
             # Not an mbox file; abort here
             raise getmailConfigurationError('%s: not an mboxrd file' % val)
         # Reset atime and mtime
         try:
             os.utime(val, (status_old.st_atime, status_old.st_mtime))
-        except OSError as o:
+        except OSError:
             # Not root or owner; readers will not be able to reliably
             # detect new mail.  But you shouldn't be delivering to
             # other peoples' mboxes unless you're root, anyways.
@@ -397,35 +396,36 @@ class ForkingBase(object):
 
     '''
     def _child_handler(self, sig, stackframe):
+        def notify():
+            self.__child_exited.acquire()
+            self.__child_exited.notify_all()
+            self.__child_exited.release()
         self.log.trace('handler called for signal %s' % sig)
         try:
-            pid, r = os.wait()
+            pid, r = os.waitpid(self.child.childpid,0)
         except OSError as o:
             # No children on SIGCHLD.  Can't happen?
             self.log.warning('handler called, but no children (%s)' % o)
+            notify()
             return
         signal.signal(signal.SIGCHLD, self.__orig_handler)
         self.__child_pid = pid
         self.__child_status = r
         self.log.trace('handler reaped child %s with status %s' % (pid, r))
-        self.__child_exited.acquire()
-        self.__child_exited.notify_all()
-        self.__child_exited.release()
+        notify()
 
     def _prepare_child(self):
         self.log.trace('')
         self.__child_exited = Condition()
-        self.__child_pid = None
+        self.__child_pid = 0
         self.__child_status = None
         self.__orig_handler = signal.signal(signal.SIGCHLD, self._child_handler)
 
     def _wait_for_child(self, childpid):
         self.__child_exited.acquire()
-        while not self.__child_exited.wait(1):
-            # Could implement a maximum wait time here
-            self.log.trace('waiting for child %d' % childpid)
-            #raise getmailDeliveryError('failed waiting for commands %s %d (%s)'
-            #                           % (self.conf['command'], childpid, o))
+        if not self.__child_exited.wait(60):
+            raise getmailOperationError('waiting child pid %d timed out'
+                                        % childpid)
         self.__child_exited.release()
         if self.__child_pid != childpid:
             #self.log.error('got child pid %d, not %d' % (pid, childpid))
@@ -470,14 +470,12 @@ class ForkingBase(object):
         os.execl(*args)
 
     def forkchild(self, childfun, with_out=True):
-        self._prepare_child()
-        child = Namespace()
+        self.child = child = Namespace()
         child.stdout = TemporaryFile23()
         child.stderr = TemporaryFile23()
         child.childpid = os.fork()
-        if child.childpid == 0:
-            childfun(child.stdout, child.stderr)
-        else:
+        if child.childpid != 0: # here (in the parent)
+            self._prepare_child()
             self.log.debug('spawned child %d\n' % child.childpid)
             child.exitcode = self._wait_for_child(child.childpid)
             child.stderr.seek(0)
@@ -486,6 +484,9 @@ class ForkingBase(object):
             if with_out:
                 child.out = child.stdout.read().strip()
             return child
+        else: #== 0 in the child
+            # calls child_replace_me to execl external command
+            childfun(child.stdout, child.stderr)
 
     def get_msginfo(self, msg):
         msginfo = {}

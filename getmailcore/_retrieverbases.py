@@ -822,6 +822,7 @@ class RetrieverSkeleton(ConfigurableBase):
                     'skipped malformed line "%r" for %s%s'
                     % (line, logname, os.linesep)
                 )
+        f.close()
         self.log.moreinfo(
             'read %i uids for %s%s'
             % (len(self.oldmail), logname, os.linesep)
@@ -1240,25 +1241,25 @@ class IMAPRetrieverBase(RetrieverSkeleton):
         if not HAVE_KERBEROS_GSS:
             # shouldn't get here
             raise ValueError('kerberos GSS support not available')
-        data = b''.join(codecs.encode(str(response),'base64').splitlines())
+        data = b''.join(codecs.encode(response,'base64').splitlines())
         if self.gss_step == GSS_STATE_STEP:
             if not self.gss_vc:
                 (rc, self.gss_vc) = kerberos.authGSSClientInit(
                     'imap@%s' % self.conf['server']
                 )
                 response = kerberos.authGSSClientResponse(self.gss_vc)
-            rc = kerberos.authGSSClientStep(self.gss_vc, data)
+            rc = kerberos.authGSSClientStep(self.gss_vc, data.decode('ascii'))
             if rc != kerberos.AUTH_GSS_CONTINUE:
                self.gss_step = GSS_STATE_WRAP
         elif self.gss_step == GSS_STATE_WRAP:
-            rc = kerberos.authGSSClientUnwrap(self.gss_vc, data)
+            rc = kerberos.authGSSClientUnwrap(self.gss_vc, data.decode('ascii'))
             response = kerberos.authGSSClientResponse(self.gss_vc)
             rc = kerberos.authGSSClientWrap(self.gss_vc, response,
                                             self.conf['username'])
         response = kerberos.authGSSClientResponse(self.gss_vc)
         if not response:
             response = ''
-        return codecs.decode(response,'base64')
+        return codecs.decode(response.encode('ascii'),'base64')
 
     def _getmboxuidbymsgid(self, msgid):
         self.log.trace()
@@ -1610,7 +1611,7 @@ class IMAPRetrieverBase(RetrieverSkeleton):
         self.log.trace()
         self.mailboxes = self.conf.get('mailboxes', ('INBOX', ))
         # Handle password
-        if (self.conf.get('password', None) is None
+        if ((self.conf.get('password', None) is None or self.conf['use_xoauth2'])
                 and not (HAVE_KERBEROS_GSS and self.conf['use_kerberos'])):
             if self.conf['password_command']:
                 # Retrieve from an arbitrary external command
@@ -1756,6 +1757,10 @@ class IMAPRetrieverBase(RetrieverSkeleton):
             self.conn.send(b'DONE\r\n')
             self.conn._command_complete('IDLE', tag)
         except imaplib.IMAP4.error as o:
+            return False
+        except BrokenPipeError as o:
+            # The underlying TLS connection closed during IDLE
+            self.log.info('BrokenPipeError after IDLE\n')
             return False
 
         if aborted:

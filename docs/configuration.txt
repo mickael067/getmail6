@@ -91,12 +91,13 @@
    Once getmail is installed, you need to configure it before you can
    retrieve mail with it. Follow these steps:
 
-    1. Create a data/configuration directory. The default is
-       $XDG_CONFIG_HOME/getmail/ or $HOME/.getmail/. If you choose a
-       different location, you will need to specify it on the getmail command
-       line. In general, other users should not be able to read the contents
-       of this directory, so you should set the permissions on it
-       appropriately.
+    1. Create a data/configuration directory. getmail complies with the XDG
+       basedir specification: $XDG_CONFIG_HOME/getmail/ defaulting to
+       ~/.config/getmail/. For backward compatibility reasons, getmail also
+       checks $HOME/.getmail/. If you want a different location, you will
+       need to specify it on the getmail command line. In general, other
+       users should not be able to read the contents of this directory, so
+       you should set the permissions on it appropriately.
 
  mkdir -m 0700 $HOME/.getmail
         
@@ -498,15 +499,23 @@ Creating a getmail rc file
        only available with Python 2.7 or higher.
      * ssl_version (string) — advanced option to control which SSL version
        getmail tries to use to connect to the server; the default is
-       "sslv23". Another useful value is probably "sslv3". The available
-       option values are taken from the Python ssl module. Note that this
-       option exists only to help in connecting certain legacy, out-of-date,
-       broken servers; most users should not specify this option at all.
-       Using this option without knowing what you are doing can reduce the
-       effectiveness of your encrypted connection. Note: this option is only
-       available with Python 2.6 or higher. Note: see the FAQ for details on
-       how to work around Gmail connection problems with OpenSSL v.1.1.1 and
-       later.
+       "sslv23". Another useful value is probably "sslv3". The possible
+       values are:
+          * sslv23
+          * sslv3
+          * tlsv1
+          * tlsv1_1
+          * tlsv1_2
+
+       Note that this option exists only to help in connecting certain
+       legacy, out-of-date, broken servers; most users should not specify
+       this option at all. Using this option without knowing what you are
+       doing can reduce the effectiveness of your encrypted connection.
+
+       Note: this option is only available with Python 2.6 or higher.
+
+       Note: see the FAQ for details on how to work around Gmail connection
+       problems with OpenSSL v.1.1.1 and later.
      * ssl_fingerprints (tuple of quoted strings) — advanced option to notice
        when the server's SSL certificate changes. Supply a list of one or
        more SHA256 certificate fingerprints, and getmail will confirm whether
@@ -1618,7 +1627,7 @@ Creating a getmail rc file
    To use getmail, simply run the script getmail, which is typically
    installed in /usr/local/bin/ by default. getmail will read the default
    getmail rc file (getmailrc) from the default configuration/data directory
-   (~/.getmail/) and begin operating.
+   (~/.config/getmail/ or ~/.getmail/) and begin operating.
 
    You can modify this behaviour by supplying commandline options to getmail.
 
@@ -1655,8 +1664,8 @@ Commandline options
 
    For instance, if you want to retrieve mail from two different mail
    accounts, create a getmail rc file for each of them (named, say,
-   getmailrc-account1 and getmailrc-account2) and put them in ~/.getmail/ or
-   $XDG_CONFIG_HOME/getmail/. Then run getmail as follows:
+   getmailrc-account1 and getmailrc-account2) and put them in directory
+   ~/.config/getmail/. Then run getmail as follows:
 
  $ getmail --rcfile getmailrc-account1 --rcfile getmailrc-account2
 

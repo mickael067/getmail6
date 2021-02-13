@@ -189,10 +189,13 @@ Please refer to the git history regarding who changed what and when in this file
 </p>
 <ol>
     <li>
-        Create a data/configuration directory.  The default is
-        <span class="file">$XDG_CONFIG_HOME/getmail/</span> or
-        <span class="file">$HOME/.getmail/</span>.
-        If you choose a different location, you will need to specify it on the
+        Create a data/configuration directory.  getmail complies
+        with <a href="https://specifications.freedesktop.org/basedir-spec/latest/index.html">the
+        XDG basedir specification</a>: <span class="file">$XDG_CONFIG_HOME/getmail/</span>
+        defaulting to <span class="file">~/.config/getmail/</span>.
+        For backward compatibility reasons, getmail also
+        checks <span class="file">$HOME/.getmail/</span>.  If you want
+        a different location, you will need to specify it on the
         <a href="#running">getmail command line</a>.
         In general, other users should not be able to read the contents of this
         directory, so you should set the permissions on it appropriately.
@@ -755,14 +758,25 @@ openssl s_client -showcerts -connect HOST:PORT &lt; /dev/null 2&gt;/dev/null \
         (<a href="#parameter-string">string</a>)
         &mdash; advanced option to control which SSL version getmail tries to
         use to connect to the server; the default is &quot;sslv23&quot;.  Another
-        useful value is probably &quot;sslv3&quot;.  The available option values
-        are taken from the Python ssl module.  Note that this option exists
-        only to help in connecting certain legacy, out-of-date, broken servers;
-        most users should not specify this option at all.  Using this option
-        without knowing what you are doing can reduce the effectiveness of
+        useful value is probably &quot;sslv3&quot;.  The possible values are:
+
+        <ul>
+          <li>sslv23</li>
+          <li>sslv3</li>
+          <li>tlsv1</li>
+          <li>tlsv1_1</li>
+          <li>tlsv1_2</li>
+        </ul>
+
+        <p>Note that this option exists only to help in connecting
+        certain legacy, out-of-date, broken servers; most users should
+        not specify this option at all.  Using this option without
+        knowing what you are doing can reduce the effectiveness of
         your encrypted connection.
-        <strong>Note: this option is only available with Python 2.6 or higher.</strong>
-        Note: see the <a href="faq.html#faq-notabug-gmail-tls-sni">FAQ for details
+
+        <p><strong>Note: this option is only available with Python 2.6 or higher.</strong>
+
+        <p>Note: see the <a href="faq.html#faq-notabug-gmail-tls-sni">FAQ for details
         on how to work around Gmail connection problems with OpenSSL v.1.1.1 and later</a>.
     </li>
     <li>
@@ -2965,7 +2979,7 @@ type = Filter_TMDA
     by default.  getmail will read the default getmail rc file
     (<span class="file">getmailrc</span>)
     from the default configuration/data directory
-    (<span class="file">~/.getmail/</span>)
+    (<span class="file">~/.config/getmail/</span> or <span class="file">~/.getmail/</span>)
     and begin operating.
 </p>
 <p>
@@ -3036,8 +3050,8 @@ type = Filter_TMDA
     <span class="file">getmailrc-account1</span>
     and
     <span class="file">getmailrc-account2</span>)
-    and put them in
-    <span class="file">~/.getmail/</span> or <span class="file">$XDG_CONFIG_HOME/getmail/</span>.
+    and put them in directory
+    <span class="file">~/.config/getmail/</span>.
     Then run getmail as follows:
 </p>
 <pre class="example">

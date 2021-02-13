@@ -380,10 +380,12 @@ def mbox_from_escape(s):
 #######################################
 def address_no_brackets(addr):
     '''Strip surrounding <> on an email address, if present.'''
-    if addr.startswith('<') and addr.endswith('>'):
-        return addr[1:-1]
+    straddr = str(addr)
+    splitaddr = straddr.split('<')
+    if len(splitaddr) > 1:
+        return splitaddr[1].split('>')[0]
     else:
-        return addr
+        return straddr
 
 #######################################
 def eval_bool(s):
@@ -699,7 +701,7 @@ def get_password(label, user, server, protocol, logger):
         logger.debug('using password from keychain/keyring\n')
     else:
         # no password found (or not on OSX), prompt in the usual way
-        password = getpass.getpass('Enter password for %s:  ' % label)
+        password = getpass.getpass('Enter password for %s: ' % label)
     return password
 
 
